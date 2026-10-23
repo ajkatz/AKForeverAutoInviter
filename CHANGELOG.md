@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-23)
 
 - First build: invite by keyword from whispers, guild, say/yell or public channels.
 - Class list, level range, only guild members and/or friends, full party -> raid.
