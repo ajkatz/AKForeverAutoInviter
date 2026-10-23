@@ -1,0 +1,14 @@
+## Interface: 16001
+## Version: @project-version@
+## Title: AKForeverAutoInviter
+## Notes: Invites whoever says your keyword - in a whisper, guild chat, say/yell or a public channel - limited to the classes and levels you pick, and to guild members or friends if you like.
+## Author: Purrdee
+## X-License: MIT
+## SavedVariables: AKForeverAutoInviterDB
+
+Core.lua
+Roster.lua
+Who.lua
+Inviter.lua
+Promote.lua
+Panel.lua
