@@ -4,6 +4,7 @@
 ## Notes: Invites whoever says your keyword - in a whisper, guild chat, say/yell or a public channel - limited to the classes and levels you pick, and to guild members or friends if you like.
 ## Author: Purrdee
 ## X-License: MIT
+## IconTexture: Interface\AddOns\AKForeverAutoInviter\icon
 ## SavedVariables: AKForeverAutoInviterDB
 
 Core.lua
