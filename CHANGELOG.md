@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-10-23)
 
 - Class caps: no more than N of each class (`/autoinv max 6`) and/or of one class (`/autoinv max druid 3`),
   also in the window beside each class. Your group is counted, you included, and so are invites still out.
