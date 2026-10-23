@@ -296,6 +296,8 @@ local OPTION_DEFAULTS = {
     anywhere = false,
     sources = { whisper = true, guild = false, say = false, channel = false },
     classes = {},                   -- [token] = false: that class is not invited; anything else is
+    capAll = nil,                   -- no more than this many of any one class in the group (nil: no cap)
+    classCaps = {},                 -- [token] = n: no more than n of that class (wins over capAll)
     minLevel = 1,
     maxLevel = nil,                 -- nil: no upper bound
     onlyGuild = false,              -- either list that is on lets a person through

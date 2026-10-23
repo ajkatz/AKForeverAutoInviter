@@ -95,6 +95,75 @@ function Inviter:LevelFilterOn()
     return min > 1 or max ~= nil
 end
 
+-- Class caps (the user, 2026-10-23: "no more than 6 of each class or something or no more than 3 druids"): one
+-- number for every class and one per class, the class's own winning. The group is counted - you too - and
+-- so is anyone invited in the last INVITE_PENDING seconds who has not joined yet, so a burst of asks cannot
+-- go past the cap before the first of them has accepted.
+local INVITE_PENDING = 120 -- an invite stands about two minutes
+Inviter.pending = {}       -- [name key] = { class, at (GetTime()) }: invited, not in the group yet
+
+function Inviter:ClassCap(token)
+    local own = tonumber(ns:GetOption("classCaps")[token])
+    if own then
+        return own
+    end
+    return tonumber(ns:GetOption("capAll"))
+end
+
+function Inviter:CapsOn()
+    if tonumber(ns:GetOption("capAll")) then
+        return true
+    end
+    return next(ns:GetOption("classCaps")) ~= nil
+end
+
+-- a stranger's class must be known when a class is left off the list, or any class has a cap
+function Inviter:NeedsClass()
+    return self:ClassFilterOn() or self:CapsOn()
+end
+
+-- the group's members by class token, and their name keys
+local function groupMembers()
+    local members = {}
+    local raid = ns.Readable(IsInRaid)
+    local units = {}
+    if raid and raid[1] then
+        for i = 1, 40 do units[#units + 1] = "raid" .. i end -- a raid's units hold you too
+    else
+        units[1] = "player"
+        for i = 1, 4 do units[#units + 1] = "party" .. i end
+    end
+    for _, unit in ipairs(units) do
+        local name = ns.Readable(GetUnitName, unit, true)
+        local key = name and ns.NameKey(name[1])
+        if key then
+            local class = ns.Readable(UnitClass, unit)
+            members[key] = class and type(class[2]) == "string" and class[2] or false
+        end
+    end
+    return members
+end
+
+-- how many of a class are in the group or on their way into it
+function Inviter:ClassCount(token, exceptKey)
+    local members = groupMembers()
+    local count = 0
+    for key, class in pairs(members) do
+        if class == token and key ~= exceptKey then
+            count = count + 1
+        end
+    end
+    local now = GetTime()
+    for key, pending in pairs(self.pending) do
+        if members[key] ~= nil or now - pending.at > INVITE_PENDING then
+            self.pending[key] = nil -- joined (counted above), or the invite has lapsed
+        elseif pending.class == token and key ~= exceptKey then
+            count = count + 1
+        end
+    end
+    return count
+end
+
 -- a full party may become a raid: asked for, or every party you lead is made one anyway
 function Inviter:RaidWhenFull()
     return ns:GetOption("autoRaid") or ns:GetOption("raidAlways")
@@ -204,6 +273,7 @@ local function invite(record)
         return
     end
     Inviter.stats.invited = Inviter.stats.invited + 1
+    Inviter.pending[record.key] = { class = record.class, at = GetTime() }
     Inviter:Record(record, "invited", Inviter.SOURCE_LABELS[record.source] or record.source)
     ns:Print("invited " .. describe(record) .. " - " .. string.lower(Inviter.SOURCE_LABELS[record.source] or record.source) .. ".")
 end
@@ -214,9 +284,17 @@ local function decide(record)
         skip(record, ns.ClassName(record.class) .. " is not on your class list")
         return
     end
-    if not record.class and Inviter:ClassFilterOn() then
+    if not record.class and Inviter:NeedsClass() then
         skip(record, "class unknown")
         return
+    end
+    local cap = record.class and Inviter:ClassCap(record.class)
+    if cap then
+        local have = Inviter:ClassCount(record.class, record.key)
+        if have >= cap then
+            skip(record, string.format("%d %ss already (max %d)", have, ns.ClassName(record.class), cap))
+            return
+        end
     end
     local min, max = Inviter:LevelRange()
     if record.level then
@@ -288,12 +366,12 @@ function Inviter:Consider(name, guid, source)
     end
 
     local needLevel = self:LevelFilterOn() and not record.level
-    local needClass = self:ClassFilterOn() and not record.class
+    local needClass = self:NeedsClass() and not record.class
     if needLevel or needClass then
         self.stats.lookedUp = self.stats.lookedUp + 1
         self:Record(record, "waiting", "/who on your next key press")
         if source == "whisper" then
-            ns:Print(describe(record) .. " asked for an invite - their level comes by /who on your next key press.")
+            ns:Print(describe(record) .. " asked for an invite - their " .. (needLevel and "level" or "class") .. " comes by /who on your next key press.")
         end
         ns.Who:Want(name, function(info, why)
             if not info then
@@ -366,11 +444,30 @@ function Inviter:Summary()
         end
     end
     parts[#parts + 1] = #excluded > 0 and ("not: " .. table.concat(excluded, ", ")) or "every class"
+    if self:CapsOn() then
+        parts[#parts + 1] = "max " .. self:CapsText()
+    end
     parts[#parts + 1] = "level " .. rangeText(self:LevelRange())
     if ns:GetOption("onlyGuild") or ns:GetOption("onlyFriends") then
         parts[#parts + 1] = "only " .. ((ns:GetOption("onlyGuild") and ns:GetOption("onlyFriends")) and "guild + friends" or (ns:GetOption("onlyGuild") and "guild" or "friends"))
     end
     return table.concat(parts, " | ")
+end
+
+-- "6 of each, 3 Druids"
+function Inviter:CapsText()
+    local parts = {}
+    local all = tonumber(ns:GetOption("capAll"))
+    if all then
+        parts[#parts + 1] = all .. " of each"
+    end
+    local caps = ns:GetOption("classCaps")
+    for _, class in ipairs(ns.Classes()) do
+        if caps[class.token] then
+            parts[#parts + 1] = caps[class.token] .. " " .. class.name .. "s"
+        end
+    end
+    return #parts > 0 and table.concat(parts, ", ") or "none"
 end
 
 local function say()
@@ -453,6 +550,35 @@ ns:RegisterCommand("class", "<class> on|off, or all - which classes are invited"
     if on then classes[token] = nil else classes[token] = false end
     ns:SetOption("classes", classes)
     say()
+end)
+
+ns:RegisterCommand("max", "<n> | <class> <n|off> | off - no more than n of each class, or of one class", function(rest)
+    local first, second = string.match(rest, "^(%S*)%s*(%S*)")
+    first = string.lower(first or "")
+    local caps = ns:GetOption("classCaps")
+    if first == "" then
+        ns:Print("class caps: " .. Inviter:CapsText())
+        return
+    end
+    if first == "off" or first == "none" then
+        ns:SetOption("capAll", nil)
+        for token in pairs(caps) do
+            caps[token] = nil
+        end
+        ns:SetOption("classCaps", caps)
+    elseif tonumber(first) then
+        ns:SetOption("capAll", math.max(0, math.floor(tonumber(first))))
+    else
+        local token = ns.ClassToken(first) or ns.ClassToken((string.gsub(first, "s$", ""))) -- "druids" too
+        if not token then
+            ns:Print("which class? " .. first)
+            return
+        end
+        local n = tonumber(second)
+        caps[token] = n and math.max(0, math.floor(n)) or nil -- "off" (or nothing) takes the class's own cap away
+        ns:SetOption("classCaps", caps)
+    end
+    ns:Print("class caps: " .. Inviter:CapsText())
 end)
 
 ns:RegisterCommand("level", "<min> [max] - the levels invited ('level 1' for any)", function(rest)

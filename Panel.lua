@@ -165,17 +165,30 @@ local function build()
     end
     y = y - ROW - 4
 
+    -- each class: invited or not, and the most of it in the group (empty: the "max of each", or no cap)
     heading(panel, "Classes", y)
+    label(panel, "max of each", PAD + 172, y - 2)
+    controls.capAll = inputBox(panel, 26, PAD + 240, y + 3, function(text)
+        local value = tonumber(text)
+        ns:SetOption("capAll", value and math.max(0, math.floor(value)) or nil)
+    end)
     y = y - ROW + 4
-    controls.classes = {}
+    controls.classes, controls.caps = {}, {}
     for index, class in ipairs(ns.Classes()) do
         local column, row = (index - 1) % 3, math.floor((index - 1) / 3)
-        local box = checkbox(panel, ns.ClassColored(class.token, class.name), PAD + column * 112, y - row * ROW, function(on)
+        local x = PAD + column * 112
+        local box = checkbox(panel, ns.ClassColored(class.token, class.name), x, y - row * ROW, function(on)
             local classes = ns:GetOption("classes")
             if on then classes[class.token] = nil else classes[class.token] = false end -- nil: allowed
             ns:SetOption("classes", classes)
         end)
         controls.classes[class.token] = box
+        controls.caps[class.token] = inputBox(panel, 22, x + 82, y - row * ROW - 1, function(text)
+            local caps = ns:GetOption("classCaps")
+            local value = tonumber(text)
+            caps[class.token] = value and math.max(0, math.floor(value)) or nil
+            ns:SetOption("classCaps", caps)
+        end)
     end
     y = y - math.ceil(#ns.Classes() / 3) * ROW - 4
 
@@ -268,6 +281,16 @@ function Panel:Refresh()
     end
     for token, box in pairs(controls.classes) do
         box:SetChecked(ns.Inviter:ClassAllowed(token))
+    end
+    local caps = ns:GetOption("classCaps")
+    for token, box in pairs(controls.caps) do
+        if not box:HasFocus() then
+            box:SetText(caps[token] and tostring(caps[token]) or "")
+        end
+    end
+    if not controls.capAll:HasFocus() then
+        local all = tonumber(ns:GetOption("capAll"))
+        controls.capAll:SetText(all and tostring(all) or "")
     end
     local min, max = ns.Inviter:LevelRange()
     if not controls.minLevel:HasFocus() then

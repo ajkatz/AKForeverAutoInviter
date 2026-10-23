@@ -370,6 +370,95 @@ scenario("the window's assistant list writes the promote list", function()
     equal(list:GetText(), "Tank Man, Healer Friend", "shown back")
 end)
 
+scenario("a class cap: no more than 3 druids, counting the group", function()
+    local ns, state = start({ guids = { ["G-D"] = "DRUID", ["G-M"] = "MAGE" } })
+    state.group.raid = true
+    state.group.members = { "Tree-One", "Tree-Two", "Tree-Three", "Fire-One" }
+    state.group.classes = { ["Tree-One"] = "DRUID", ["Tree-Two"] = "DRUID", ["Tree-Three"] = "DRUID", ["Fire-One"] = "MAGE" }
+    Mock.slash("max druids 3")
+    equal(ns:GetOption("classCaps").DRUID, 3, "'druids' read as the class")
+    whisper("inv", "Moon-Kin", "G-D")
+    whisper("inv", "Frost-Bolt", "G-M")
+    equal(#Mock.invites, 1)
+    equal(Mock.invites[1], "Frost-Bolt", "a mage passes: no cap on mages")
+    local skipped = ns.db.recent[#ns.db.recent - 1]
+    check(skipped.reason:find("3 Druids already (max 3)", 1, true), "reason: " .. tostring(skipped.reason))
+    check(printed("not inviting"), "the druid who whispered is told why in your chat")
+end)
+
+scenario("'max of each' counts you too, and a class's own cap wins over it", function()
+    local ns, state = start({ guids = { ["G-S"] = "SHAMAN", ["G-W"] = "WARRIOR" } })
+    state.group.members = { "Totem-One" }
+    state.group.classes = { ["Totem-One"] = "SHAMAN" }
+    Mock.slash("max 2")
+    whisper("inv", "Totem-Two", "G-S")
+    equal(#Mock.invites, 0, "you and Totem-One are two shamans already")
+    Mock.slash("max shaman 3")
+    Mock.advance(11)
+    whisper("inv", "Totem-Two", "G-S")
+    equal(#Mock.invites, 1, "the shaman's own 3 wins over 2 of each")
+    Mock.slash("max off")
+    check(not ns.Inviter:CapsOn(), "all caps gone")
+end)
+
+scenario("invites still out count against the cap, until they lapse", function()
+    local ns = start({ guids = { ["G-1"] = "PRIEST", ["G-2"] = "PRIEST", ["G-3"] = "PRIEST" } })
+    Mock.slash("max priest 2")
+    whisper("inv", "Holy-One", "G-1")
+    whisper("inv", "Holy-Two", "G-2")
+    whisper("inv", "Holy-Three", "G-3")
+    equal(#Mock.invites, 2, "two invited, neither has joined, the third waits for room")
+    check(lastDecision(ns).reason:find("2 Priests already", 1, true), "reason: " .. tostring(lastDecision(ns).reason))
+    Mock.advance(121)
+    whisper("inv", "Holy-Three", "G-3")
+    equal(#Mock.invites, 3, "the first two invites lapsed unanswered")
+end)
+
+scenario("someone who joined is counted once, not as member and invite both", function()
+    local ns, state = start({ guids = { ["G-1"] = "ROGUE", ["G-2"] = "ROGUE" } })
+    Mock.slash("max rogue 2")
+    whisper("inv", "Stab-One", "G-1")
+    state.group.members = { "Stab-One" }
+    state.group.classes = { ["Stab-One"] = "ROGUE" }
+    whisper("inv", "Stab-Two", "G-2")
+    equal(#Mock.invites, 2, "one rogue in the group: room for the second")
+    equal(ns.Inviter:ClassCount("ROGUE"), 2, "Stab-One once, Stab-Two on the way")
+end)
+
+scenario("with a cap on, a stranger with no GUID class is looked up by /who", function()
+    local ns = start()
+    Mock.slash("max druid 1")
+    whisper("inv", "No-Guid")
+    equal(#Mock.invites, 0)
+    equal(lastDecision(ns).outcome, "waiting")
+    Mock.advance(1)
+    Mock.key("W")
+    equal(#Mock.whoQueries, 1, "the /who went out for the class")
+    Mock.whoAnswer({ { "No-Guid", 30, "Tauren", "Druid" } })
+    equal(#Mock.invites, 1, "the first druid fits under a cap of 1")
+end)
+
+scenario("the window's class cap boxes write the caps", function()
+    local ns = start()
+    Mock.slash("")
+    local boxes = {}
+    for _, w in ipairs(Mock.frames) do
+        if w.__kind == "EditBox" then
+            boxes[#boxes + 1] = w
+        end
+    end
+    -- keywords, max of each, then one per class in the client's order (warrior first, druid last)
+    local capAll, warrior, druid = boxes[2], boxes[3], boxes[11]
+    capAll:SetFocus(); capAll:SetText("6"); capAll:ClearFocus()
+    druid:SetFocus(); druid:SetText("3"); druid:ClearFocus()
+    equal(ns:GetOption("capAll"), 6)
+    equal(ns:GetOption("classCaps").DRUID, 3)
+    equal(warrior:GetText(), "", "no own cap for warriors")
+    druid:SetFocus(); druid:SetText(""); druid:ClearFocus()
+    equal(ns:GetOption("classCaps").DRUID, nil, "emptied: the druid cap is gone")
+    check(ns.Inviter:Summary():find("max 6 of each", 1, true), ns.Inviter:Summary())
+end)
+
 scenario("a secret chat line is skipped without an error", function()
     local ns = start()
     whisper(Mock.SECRET, "A-One")

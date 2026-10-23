@@ -12,6 +12,7 @@ Invites whoever says your keyword. For WoW: Forever.
 | ... anywhere in a line | off (`can you inv me` does not count) | `/autoinv anywhere on` |
 | Heard in | whispers only | `/autoinv listen guild\|say\|channel\|whisper on\|off` |
 | Classes | every class | `/autoinv class rogue off`, `/autoinv class all` |
+| Class caps | none | `/autoinv max 6` (no more than 6 of any class), `/autoinv max druid 3`, `/autoinv max druid off`, `/autoinv max off` |
 | Level | any | `/autoinv level 10 20`, `/autoinv level 15` (15 and up), `/autoinv level 1` (any) |
 | Only guild / friends | anyone | `/autoinv only guild\|friends\|both\|none` |
 | Party -> raid | off | `/autoinv raid full` (only to invite a sixth), `/autoinv raid always` (any party you lead), `/autoinv raid off` |
@@ -19,6 +20,9 @@ Invites whoever says your keyword. For WoW: Forever.
 
 Guild covers officer chat; say covers yell; channels are every public channel (General, Trade, LFG, custom).
 The rules are shared by all your characters; on/off and the window's place are per character.
+
+Class caps count everyone in your group - you too - and everyone invited in the last two minutes who has
+not joined yet, so a rush of whispers cannot go past the cap. A class's own cap wins over "of each".
 
 Raid assistants: only a raid has them, and only its leader hands them out. "Everyone" switches on the raid's
 own everyone-is-assistant setting (and back off when you untick it); the list promotes each listed name as

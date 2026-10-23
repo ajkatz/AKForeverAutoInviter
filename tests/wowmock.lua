@@ -75,6 +75,9 @@ local function noop() end
 local function newWidget(kind, name, parent)
     local w = { __kind = kind, __name = name, __parent = parent, __points = {}, __scripts = {}, __events = {}, __shown = true }
     setmetatable(w, { __index = function(_, key)
+        if string.sub(key, 1, 2) == "__" then
+            return nil -- the mock's own state, unset
+        end
         return widgetMethods[key] or noop
     end })
     w.CreateFontString = function(self, fsName)
@@ -178,10 +181,24 @@ function Mock.install(options)
         if unit == "player" then
             return full and (state.playerName .. " " .. state.surname) or state.playerName
         end
-        local index = tonumber(string.match(unit, "^party(%d)$") or string.match(unit, "^raid(%d+)$") or "")
-        local member = index and state.group.members[index]
+        local member = Mock.unitMember(unit)
+        if member == "player" then
+            return state.playerName .. " " .. state.surname
+        end
         if member then
-            return string.gsub(member, "%-", " ")
+            return (string.gsub(member, "%-", " "))
+        end
+        return nil
+    end
+    -- the group's classes: state.group.classes[name], WARRIOR when not given; you are a shaman
+    G.UnitClass = function(unit)
+        local member = unit == "player" and "player" or Mock.unitMember(unit)
+        if member == "player" then
+            return "Shaman", "SHAMAN"
+        end
+        if member then
+            local token = state.group.classes[member] or "WARRIOR"
+            return token:sub(1, 1) .. token:sub(2):lower(), token
         end
         return nil
     end
@@ -193,7 +210,7 @@ function Mock.install(options)
     G.UnitIsGroupLeader = function(unit) return unit == "player" and state.group.leader end
     G.UnitIsGroupAssistant = function(unit) return unit == "player" and state.group.assistant end
     -- ranks: [name] = 1 (assistant); the leader (you) is 2, everyone else 0
-    state.group.ranks, state.group.everyone = {}, false
+    state.group.ranks, state.group.everyone, state.group.classes = {}, false, {}
     Mock.promotions = {}
     G.C_PartyInfo = {
         InviteUnit = function(name) Mock.invites[#Mock.invites + 1] = name end,
@@ -276,6 +293,23 @@ end
 ------------------------------------------------------------------------
 -- Events, time, the player
 ------------------------------------------------------------------------
+-- who a unit is: "player", a member's name, or nil. party1.. are the others; in a raid, raid1 is you
+-- and raid2.. the others, as GetRaidRosterInfo orders them
+function Mock.unitMember(unit)
+    local party = tonumber(string.match(unit, "^party(%d)$") or "")
+    if party then
+        return not state.group.raid and state.group.members[party] or nil
+    end
+    local raid = tonumber(string.match(unit, "^raid(%d+)$") or "")
+    if raid and state.group.raid then
+        if raid == 1 then
+            return "player"
+        end
+        return state.group.members[raid - 1]
+    end
+    return nil
+end
+
 function Mock.fire(event, ...)
     for _, frame in ipairs(Mock.frames) do
         if frame.__events[event] and frame.__scripts.OnEvent then

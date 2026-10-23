@@ -13,6 +13,8 @@ says it is invited - no clicking, no typing names.
   channels (General, Trade, LFG, your own) each with their own switch. The keyword counts on its own, or - if
   you like - anywhere in a line.
 - **Only the classes you want.** Untick a class and nobody of it is invited.
+- **Class caps.** No more than six of any class, or no more than three druids - your group counts, you
+  included, and so do invites still waiting for an answer.
 - **Only the levels you want.** A range, or just a floor. Guild members and friends are checked on the spot;
   for anyone else the addon asks the server with a `/who` on your next key press (the game allows a `/who` only
   then), keeps its answer out of your chat, and invites them if they fit. Away from the keyboard? Nobody is
@@ -34,6 +36,7 @@ starts switched off.
 - `/autoinv keywords inv, 123`, `/autoinv anywhere on|off`
 - `/autoinv listen whisper|guild|say|channel on|off`
 - `/autoinv class rogue off`, `/autoinv class all`
+- `/autoinv max 6`, `/autoinv max druid 3`, `/autoinv max druid off`, `/autoinv max off`
 - `/autoinv level 10 20`, `/autoinv level 15`, `/autoinv level 1`
 - `/autoinv only guild|friends|both|none`
 - `/autoinv raid full|always|off`
